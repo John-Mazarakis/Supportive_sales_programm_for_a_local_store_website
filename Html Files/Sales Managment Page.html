@@ -1,0 +1,163 @@
+<!-- Form for selecting text, brands, percentage, and date range -->
+<form id="brand-form">
+    <!-- New Text Field -->
+    <label for="textField">Ονομασία Προσφοράς:</label>
+    <input type="text" id="textField" name="textField" maxlength="150" placeholder="π.χ. Εκπτώσεις από νοτο.">
+    <br><br>
+
+    <div id="brands-container">Loading brands...</div> <!-- Brands will be loaded here -->
+    <br>
+
+    <!-- New input field for percentage -->
+    <label for="percentage">Ποσοστό Προσφοράς (0-100):</label>
+    <input type="number" id="percentage" name="percentage" min="0" max="100">
+    <br><br>
+
+    <!-- New input fields for start and end dates -->
+    <label for="startdate">Ημερομηνία Έναρξης Προσφοράς:</label>
+    <input type="date" id="startdate" name="startdate">
+    <br><br>
+
+    <label for="enddate">Ημερομηνία Λήξης Προσφοράς:</label>
+    <input type="date" id="enddate" name="enddate">
+    <br><br>
+
+    <button type="submit">Καταχώρηση</button>
+</form>
+
+<p><strong>Selected Brands:</strong> <span id="selected-brands"></span></p>
+
+<!-- Section to display active sales -->
+<h3>Ενεργές Προσφορές</h3>
+<div id="active-sales">Loading active sales...</div>
+
+<!-- jQuery and Select2 Scripts for AJAX and Select2 functionality -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+
+<script>
+    // Function to load the brands from the server
+    function loadBrands() {
+        $.ajax({
+            url: "/Sales_Programm/Brands.php", // Path to Brands.php file
+            type: "GET",
+            success: function (data) {
+                $("#brands-container").html(data); // Insert brands dropdown
+                
+                // Ensure the dropdown is found before initializing Select2
+                if ($("#brand-select").length) {
+                    $("#brand-select").select2({
+                        placeholder: "Επιλογή Brand",
+                        allowClear: true,
+                        width: '100%' // Set dropdown width
+                    });
+                } else {
+                    console.error("Brand select field not found!");
+                }
+            },
+            error: function () {
+                $("#brands-container").html("<p>Error loading brands.</p>");
+            }
+        });
+    }
+
+    // Function to load active sales
+    function loadActiveSales() {
+        $.ajax({
+            url: "/Sales_Programm/get_active_sales.php", // Path to get_active_sales.php
+            type: "GET",
+            success: function (data) {
+                $("#active-sales").html(data);
+            },
+            error: function () {
+                $("#active-sales").html("<p>Error loading active sales.</p>");
+            }
+        });
+    }
+
+    // Function to delete a sale
+    function deleteSale(saleId) {
+        if (confirm("Είστε σίγουροι ότι θέλετε να διαγράψετε αυτήν την προσφορά;")) {
+            $.ajax({
+                url: "/Sales_Programm/delete_sale.php", // Path to delete_sale.php
+                type: "POST",
+                data: { sale_id: saleId },
+                success: function (response) {
+                    alert(response); // Show success message
+                    loadActiveSales(); // Reload the sales list
+                },
+                error: function () {
+                    alert("Error deleting sale.");
+                }
+            });
+        }
+    }
+
+    // When the document is ready
+    $(document).ready(function () {
+        loadBrands(); // Load brands when page loads
+        loadActiveSales(); // Load active sales when page loads
+
+        // Get today's date and set it as the minimum date for the start date field
+        var today = new Date().toISOString().split('T')[0];
+        document.getElementById('startdate').setAttribute('min', today);
+
+        // Handle form submission via AJAX
+        $("#brand-form").submit(function (e) {
+            e.preventDefault(); // Prevent the default form submission
+
+            var selectedBrands = $("#brand-select").val(); // Get selected brands
+            var percentage = $("#percentage").val(); // Get the percentage
+            var startdate = $("#startdate").val(); // Get the start date
+            var enddate = $("#enddate").val(); // Get the end date
+            var textField = $("#textField").val(); // Get the value of the text field
+
+            // Validate percentage to be between 0 and 100
+            if (percentage < 0 || percentage > 100) {
+                alert("Please enter a valid percentage between 0 and 100.");
+                return;
+            }
+
+            // Ensure at least one brand is selected
+            if (!selectedBrands || selectedBrands.length === 0) {
+                alert("Please select at least one brand.");
+                return;
+            }
+
+            // Validate the start and end dates
+            if (!startdate || !enddate) {
+                alert("Please select both start and end dates.");
+                return;
+            }
+
+            var startDateValue = new Date(startdate);
+            var endDateValue = new Date(enddate);
+
+            if (endDateValue < startDateValue) {
+                alert('The end date must be later than the start date.');
+                return;
+            }
+
+            // Send selected brands, percentage, dates, and textField to the server
+            $.ajax({
+                type: "POST",
+                url: "/Sales_Programm/submit_form.php", // Path to submit_form.php
+                data: {
+                    brands: selectedBrands,
+                    percentage: percentage,
+                    startdate: startdate,
+                    enddate: enddate,
+                    textField: textField // Include the new text field value
+                },
+                success: function (response) {
+                    $("#selected-brands").text(response); // Show the comma-separated brands and percentage
+                    loadActiveSales(); // Reload active sales after submission
+                },
+                error: function () {
+                    alert("Error processing request.");
+                }
+            });
+        });
+    });
+</script>
